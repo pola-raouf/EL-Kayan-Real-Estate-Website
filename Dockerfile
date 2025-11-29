@@ -1,33 +1,42 @@
-# Base image
+# 1️⃣ Base image
 FROM php:8.2-fpm
 
-# Set working directory
-WORKDIR /var/www
+# 2️⃣ Set working directory
+WORKDIR /var/www/html
 
-# Install system dependencies
+# 3️⃣ Install system dependencies & PHP extensions
 RUN apt-get update && apt-get install -y \
     git \
     curl \
-    libpq-dev \
+    zip unzip \
+    libpng-dev \
     libonig-dev \
+    libxml2-dev \
     libzip-dev \
-    unzip \
-    && docker-php-ext-install pdo pdo_pgsql mbstring zip
+    && docker-php-ext-install pdo pdo_mysql mbstring exif pcntl bcmath gd zip
 
-# Install Composer
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+# 4️⃣ Install Composer
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# Copy project files
+# 5️⃣ Copy project files
 COPY . .
 
-# Install PHP dependencies
-RUN composer install --no-dev --optimize-autoloader
+# 6️⃣ Set permissions (Linux)
+RUN chown -R www-data:www-data /var/www/html \
+    && chmod -R 755 /var/www/html
 
-# Set permissions
-RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
+# 7️⃣ Composer install
+RUN composer install --no-dev --optimize-autoloader --prefer-dist --no-interaction
 
-# Expose port
-EXPOSE 8000
+# 8️⃣ Generate application key
+RUN php artisan key:generate
 
-# Run migrations and start server
-CMD php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=8000
+# 9️⃣ Clear caches
+RUN php artisan config:clear \
+    && php artisan cache:clear \
+    && php artisan route:clear \
+    && php artisan view:clear
+
+# 10️⃣ Expose port 9000 and start PHP-FPM
+EXPOSE 9000
+CMD ["php-fpm"]
