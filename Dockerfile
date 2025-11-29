@@ -1,66 +1,33 @@
-# =====================
-# 1️⃣ Base image
-# =====================
+# Base image
 FROM php:8.2-fpm
 
-# =====================
-# 2️⃣ System dependencies
-# =====================
+# Set working directory
+WORKDIR /var/www
+
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     git \
-    unzip \
-    libzip-dev \
+    curl \
+    libpq-dev \
     libonig-dev \
-    libpng-dev \
-    libjpeg-dev \
-    libfreetype6-dev \
-    && docker-php-ext-install pdo_mysql mbstring zip exif pcntl gd \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+    libzip-dev \
+    unzip \
+    && docker-php-ext-install pdo pdo_pgsql mbstring zip
 
-# =====================
-# 3️⃣ Set working directory
-# =====================
-WORKDIR /var/www/html
+# Install Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# =====================
-# 4️⃣ Install Composer
-# =====================
-RUN php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" \
-    && php composer-setup.php --install-dir=/usr/local/bin --filename=composer \
-    && php -r "unlink('composer-setup.php');"
-
-# =====================
-# 5️⃣ Copy composer files & install PHP dependencies
-# =====================
-COPY composer.json composer.lock ./
-RUN composer install --no-dev --optimize-autoloader --ignore-platform-reqs
-
-# =====================
-# 6️⃣ Copy the rest of the application
-# =====================
+# Copy project files
 COPY . .
 
-# =====================
-# 7️⃣ Set permissions
-# =====================
-RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
-    && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+# Install PHP dependencies
+RUN composer install --no-dev --optimize-autoloader
 
-# =====================
-# 8️⃣ Environment variables
-# =====================
-ENV APP_ENV=production
-ENV APP_DEBUG=false
-# غيّر APP_URL لرابط التطبيق على Render
-ENV APP_URL=https://your-app-name.onrender.com
+# Set permissions
+RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
 
-# =====================
-# 9️⃣ Generate app key if missing
-# =====================
-RUN php artisan key:generate
+# Expose port
+EXPOSE 8000
 
-# =====================
-# 🔥 Expose port and start PHP-FPM
-# =====================
-EXPOSE 10000
-CMD ["php-fpm"]
+# Run migrations and start server
+CMD php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=8000
